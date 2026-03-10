@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Grand Gallery — Artwork Guessing Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1209;
+    --parchment: #f5efe0;
+    --gold: #c9a84c;
+    --gold-light: #e8d08a;
+    --deep: #2d1f0e;
+    --cream: #faf6ec;
+    --red: #8b1a1a;
+    --muted: #7a6b55;
+    --frame: #3d2b1a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background-color: var(--deep);
+    background-image:
+      repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(201,168,76,.04) 40px,rgba(201,168,76,.04) 41px),
+      repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(201,168,76,.04) 40px,rgba(201,168,76,.04) 41px);
+    font-family: 'Cormorant Garamond', serif;
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0 16px 60px;
+  }
+  header { text-align:center; padding:36px 20px 18px; width:100%; max-width:680px; }
+  .gallery-name {
+    font-family:'Playfair Display',serif;
+    font-size:clamp(.85rem,2.5vw,1rem); letter-spacing:.35em;
+    text-transform:uppercase; color:var(--gold); margin-bottom:8px;
+  }
+  h1 { font-family:'Playfair Display',serif; font-size:clamp(1.9rem,5.5vw,3.2rem); color:var(--parchment); line-height:1.1; }
+  h1 em { font-style:italic; color:var(--gold-light); }
+  .divider { display:flex; align-items:center; gap:12px; margin:14px auto; width:200px; color:var(--gold); }
+  .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--gold); opacity:.5; }
+  .scoreboard { display:flex; gap:28px; justify-content:center; }
+  .score-item { text-align:center; color:var(--parchment); }
+  .score-item .value { font-family:'Playfair Display',serif; font-size:1.9rem; color:var(--gold); display:block; line-height:1; }
+  .score-item .label { font-size:.72rem; letter-spacing:.2em; text-transform:uppercase; opacity:.6; }
+  .progress-bar-wrap { width:100%; max-width:680px; height:4px; background:rgba(255,255,255,.08); margin:18px 0; }
+  .progress-bar-fill { height:100%; background:linear-gradient(90deg,var(--gold),var(--gold-light)); transition:width .5s ease; }
+
+  /* Loading screen */
+  #loadingScreen {
+    width:100%; max-width:680px;
+    padding:60px 40px; text-align:center; color:var(--parchment);
+  }
+  .spinner {
+    width:48px; height:48px; border:3px solid rgba(201,168,76,.2);
+    border-top-color:var(--gold); border-radius:50%;
+    animation:spin 1s linear infinite; margin:0 auto 24px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-title { font-family:'Playfair Display',serif; font-size:1.4rem; font-style:italic; margin-bottom:8px; }
+  .loading-sub { font-size:.9rem; color:var(--muted); }
+  .load-progress { margin-top:16px; color:var(--gold); font-size:.85rem; letter-spacing:.1em; }
+
+  /* Game card */
+  .game-card {
+    background:var(--cream); width:100%; max-width:680px;
+    box-shadow:0 0 0 6px var(--frame),0 0 0 10px var(--gold),0 0 0 14px var(--frame),0 30px 60px rgba(0,0,0,.7);
+    overflow:hidden; animation:cardIn .6s ease forwards; display:none;
+  }
+  @keyframes cardIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+  .painting-area { background:var(--frame); padding:14px; position:relative; }
+  .painting-inner {
+    background:#111; line-height:0; position:relative;
+    min-height:200px; display:flex; align-items:center; justify-content:center;
+  }
+  .artwork-img { width:100%; max-height:380px; object-fit:contain; display:none; background:#111; }
+  .img-loading {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--gold); font-family:'Playfair Display',serif;
+    font-style:italic; font-size:1rem; letter-spacing:.1em; background:#111;
+  }
+  .img-error {
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    color:#888; font-size:.85rem; background:#1a1a1a; text-align:center; padding:20px; font-style:italic;
+  }
+  .painting-area::before {
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:2;
+    background:linear-gradient(to bottom right,rgba(255,255,255,.06) 0%,transparent 50%),
+               linear-gradient(to bottom left,rgba(0,0,0,.12) 0%,transparent 50%);
+  }
+  .artwork-number {
+    position:absolute; bottom:18px; right:18px; background:var(--frame);
+    border:1px solid var(--gold); color:var(--gold);
+    font-family:'Playfair Display',serif; font-size:.78rem; letter-spacing:.15em; padding:4px 10px; z-index:3;
+  }
+  .question-section { padding:24px 28px 16px; border-bottom:1px solid rgba(61,43,26,.15); }
+  .question-label { font-size:.7rem; letter-spacing:.3em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+  .question-text { font-family:'Playfair Display',serif; font-size:clamp(1rem,2.8vw,1.35rem); color:var(--deep); font-style:italic; line-height:1.4; }
+  .choices-grid { padding:18px 28px 24px; display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .choice-btn {
+    background:var(--parchment); border:1.5px solid rgba(61,43,26,.2); color:var(--deep);
+    font-family:'Cormorant Garamond',serif; font-size:clamp(.82rem,2vw,.98rem);
+    padding:11px 13px; cursor:pointer; text-align:left; line-height:1.35;
+    transition:all .2s ease; position:relative; overflow:hidden;
+  }
+  .choice-btn::before {
+    content:''; position:absolute; left:0; top:0; bottom:0;
+    width:3px; background:var(--gold); transform:scaleY(0); transition:transform .2s ease;
+  }
+  .choice-btn:hover:not(:disabled) { background:#ede5cf; border-color:var(--gold); transform:translateX(3px); }
+  .choice-btn:hover:not(:disabled)::before { transform:scaleY(1); }
+  .choice-btn.correct { background:#2e4a2e; border-color:#4a8a4a; color:#c8eec8; animation:pulse-green .4s ease; }
+  .choice-btn.correct::before { background:#4a8a4a; transform:scaleY(1); }
+  .choice-btn.wrong { background:#4a1a1a; border-color:var(--red); color:#e8a0a0; }
+  .choice-btn.wrong::before { background:var(--red); transform:scaleY(1); }
+  .choice-btn.reveal { background:#2a3a2a; border-color:#5a9a5a; color:#b0ddb0; }
+  .choice-btn:disabled { cursor:default; }
+  @keyframes pulse-green { 0%{transform:scale(1)} 50%{transform:scale(1.02)} 100%{transform:scale(1)} }
+  .feedback {
+    padding:14px 28px; min-height:58px; align-items:center; gap:12px;
+    border-top:1px solid rgba(61,43,26,.12); background:var(--cream); display:none;
+  }
+  .feedback-icon { font-size:1.5rem; flex-shrink:0; }
+  .feedback-title { font-family:'Playfair Display',serif; font-size:1rem; margin-bottom:2px; }
+  .feedback-title.correct { color:#3a7a3a; }
+  .feedback-title.wrong { color:var(--red); }
+  .feedback-detail { font-size:.88rem; color:var(--muted); font-style:italic; }
+  .next-btn {
+    margin:0 28px 24px; width:calc(100% - 56px); padding:13px;
+    background:var(--frame); color:var(--gold); border:1px solid var(--gold);
+    font-family:'Playfair Display',serif; font-size:.95rem; letter-spacing:.15em;
+    cursor:pointer; text-transform:uppercase; transition:all .2s ease; display:none;
+  }
+  .next-btn:hover { background:var(--gold); color:var(--frame); }
+
+  /* Final screen */
+  .final-screen {
+    background:var(--cream); width:100%; max-width:680px;
+    box-shadow:0 0 0 6px var(--frame),0 0 0 10px var(--gold),0 0 0 14px var(--frame),0 30px 60px rgba(0,0,0,.7);
+    padding:52px 40px 48px; text-align:center; display:none; animation:cardIn .6s ease forwards;
+  }
+  .final-medal { font-size:4rem; margin-bottom:16px; }
+  .final-title { font-family:'Playfair Display',serif; font-size:clamp(1.7rem,4.5vw,2.4rem); color:var(--deep); margin-bottom:8px; }
+  .final-score { font-family:'Playfair Display',serif; font-size:clamp(2.8rem,7vw,4.5rem); color:var(--gold); line-height:1; margin:14px 0 6px; }
+  .final-subtitle { font-size:1rem; color:var(--muted); font-style:italic; margin-bottom:28px; }
+  .grade-badge {
+    display:inline-block; border:2px solid var(--gold); color:var(--deep);
+    font-family:'Playfair Display',serif; font-size:.95rem; letter-spacing:.15em;
+    padding:7px 26px; margin-bottom:30px; text-transform:uppercase;
+  }
+  .play-again-btn {
+    padding:13px 44px; background:var(--frame); color:var(--gold); border:1px solid var(--gold);
+    font-family:'Playfair Display',serif; font-size:.95rem; letter-spacing:.15em;
+    cursor:pointer; text-transform:uppercase; transition:all .2s ease;
+  }
+  .play-again-btn:hover { background:var(--gold); color:var(--frame); }
+  @media(max-width:480px){
+    .choices-grid{grid-template-columns:1fr;padding:12px 18px 18px;}
+    .question-section{padding:18px 18px 14px;}
+    .feedback{padding:12px 18px;}
+    .next-btn{margin:0 18px 18px;width:calc(100% - 36px);}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="gallery-name">The Grand Gallery</p>
+  <h1>Name the <em>Artwork</em></h1>
+  <div class="divider">✦</div>
+  <div class="scoreboard">
+    <div class="score-item"><span class="value" id="scoreVal">0</span><span class="label">Correct</span></div>
+    <div class="score-item"><span class="value" id="questionVal">1</span><span class="label">Question</span></div>
+    <div class="score-item"><span class="value" id="totalVal">30</span><span class="label">Total</span></div>
+  </div>
+</header>
+
+<div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div>
+
+<!-- Loading screen -->
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <div class="loading-title">Curating the Exhibition…</div>
+  <div class="loading-sub">Fetching artworks from public archives</div>
+  <div class="load-progress" id="loadProgress">0 / 30 loaded</div>
+</div>
+
+<!-- Game card -->
+<div class="game-card" id="gameCard">
+  <div class="painting-area">
+    <div class="painting-inner">
+      <div class="img-loading" id="imgLoading">Loading artwork…</div>
+      <img class="artwork-img" id="artworkImg" alt="Artwork to identify" />
+      <div class="img-error" id="imgError">Image could not be loaded.</div>
+    </div>
+    <div class="artwork-number" id="artworkNum">1 / 30</div>
+  </div>
+  <div class="question-section">
+    <p class="question-label">Identify the Painting</p>
+    <p class="question-text">What is the name of this artwork?</p>
+  </div>
+  <div class="choices-grid" id="choicesGrid"></div>
+  <div class="feedback" id="feedback">
+    <span class="feedback-icon" id="feedbackIcon"></span>
+    <div>
+      <div class="feedback-title" id="feedbackTitle"></div>
+      <div class="feedback-detail" id="feedbackDetail"></div>
+    </div>
+  </div>
+  <button class="next-btn" id="nextBtn" onclick="nextQuestion()">Continue to Next →</button>
+</div>
+
+<!-- Final screen -->
+<div class="final-screen" id="finalScreen">
+  <div class="final-medal" id="finalMedal">🖼️</div>
+  <h2 class="final-title">The Exhibition Ends</h2>
+  <div class="final-score" id="finalScore">0/30</div>
+  <div class="final-subtitle" id="finalSubtitle"></div>
+  <div class="grade-badge" id="gradeBadge"></div><br><br>
+  <button class="play-again-btn" onclick="restartGame()">View Another Exhibition</button>
+</div>
+
+<script>
+// Each entry: title shown to player + the exact Commons filename to query via API
+const ARTWORKS_DEF = [
+  { title: "The School of Athens",           file: "School_of_Athens_by_Raphael.jpg" },
+  { title: "Yakan Seputangan",               file: "Yakan_textile.jpg" },
+  { title: "Christ in the House of His Parents", file: "Christ_in_the_House_of_His_Parents_%281849-50%29.jpg" },
+  { title: "Narcissus",                      file: "Caravaggio_-_Narcissus_-_Google_Art_Project.jpg" },
+  { title: "The Death of Marat",             file: "Jacques-Louis_David_-_Marat_assassinated_-_Google_Art_Project.jpg" },
+  { title: "The Awakening Conscience",       file: "The_Awakening_Conscience.jpg" },
+  { title: "Anatomical Pieces",             file: "Anatomical_studies_Leonardo_da_Vinci.jpg" },
+  { title: "The Desperate Man",             file: "Gustave_Courbet_-_Le_D%C3%A9sesp%C3%A9r%C3%A9.jpg" },
+  { title: "The Swing",                     file: "Fragonard_-_The_Swing.jpg" },
+  { title: "Ophelia",                       file: "John_Everett_Millais_-_Ophelia_-_Google_Art_Project.jpg" },
+  { title: "The Entombment of Christ",      file: "The_Entombment_of_Christ-Caravaggio_%281602-3%29.jpg" },
+  { title: "Saturn Eating His Son",         file: "Francisco_de_Goya%2C_Saturno_devorando_a_su_hijo_%281819-1823%29.jpg" },
+  { title: "Portrait of a Young Woman",     file: "Sandro_Botticelli_-_Portrait_of_a_Young_Woman_%28Simonetta_Vespucci%29_-_Google_Art_Project.jpg" },
+  { title: "The Origin of the World",       file: "Gustave_Courbet_-_L%27Origine_du_monde.jpg" },
+  { title: "The Raft of the Medusa",        file: "JEAN_LOUIS_TH%C3%89ODORE_G%C3%89RICAULT_-_La_Balsa_de_la_Medusa_%28Museo_del_Louvre%2C_1818-19%29.jpg" },
+  { title: "The Joy of Life",              file: "Matisse-joie-de-vivre.jpg" },
+  { title: "The Dream",                    file: "Henri_Rousseau_-_The_Dream_-_Google_Art_Project.jpg" },
+  { title: "Lovers with Cat",             file: "Marc_Chagall_Lovers_with_Cat.jpg" },
+  { title: "Liberty Leading the People",  file: "Eug%C3%A8ne_Delacroix_-_La_libert%C3%A9_guidant_le_peuple.jpg" },
+  { title: "The Persistence of Memory",   file: "The_Persistence_of_Memory_-_Salvador_Dal%C3%AD_-_1931.jpg" },
+  { title: "The Anatomy Lesson of Dr. Nicolaes Tulp", file: "Rembrandt_van_Rijn-_De_anatomische_les_van_Dr._Nicolaes_Tulp.jpg" },
+  { title: "Oath of the Horatii",         file: "Jacques-Louis_David_-_Oath_of_the_Horatii_-_Google_Art_Project.jpg" },
+  { title: "Spoliarium",                  file: "Spoliarium_by_Juan_Luna.jpg" },
+  { title: "The Nightmare",               file: "John_Henry_Fuseli_-_The_Nightmare.jpg" },
+  { title: "The Birth of Venus",          file: "Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_Full_resolution.jpg" },
+  { title: "Venus of Urbino",             file: "Tiziano_-_Venere_di_Urbino_-_Google_Art_Project.jpg" },
+  { title: "A Sunday on La Grande Jatte", file: "A_Sunday_on_La_Grande_Jatte%2C_Georges_Seurat%2C_1884.jpg" },
+  { title: "Wanderer Above the Sea of Fog", file: "Caspar_David_Friedrich_-_Wanderer_above_the_Sea_of_Fog.jpg" },
+  { title: "Miners' Wives",              file: "Miners_Wives_by_Henry_Moore.jpg" },
+  { title: "Three Graces",               file: "The_Three_Graces_-_Lucas_Cranach_the_Elder.jpg" },
+];
+
+// Fallback direct image URLs (used if API fails for a specific painting)
+const FALLBACKS = {
+  "The School of Athens":          "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/School_of_Athens_Raphael.jpg/800px-School_of_Athens_Raphael.jpg",
+  "The Birth of Venus":            "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Birth_of_Venus_Botticelli.jpg/500px-Birth_of_Venus_Botticelli.jpg",
+  "The Persistence of Memory":     "https://upload.wikimedia.org/wikipedia/en/thumb/d/dd/The_Persistence_of_Memory.jpg/800px-The_Persistence_of_Memory.jpg",
+  "Liberty Leading the People":    "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Delacroix%2C_Liberty_Leading_the_People.jpg/750px-Delacroix%2C_Liberty_Leading_the_People.jpg",
+  "The Nightmare":                 "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/The_Nightmare_by_Henry_Fuseli.jpg/700px-The_Nightmare_by_Henry_Fuseli.jpg",
+  "Wanderer Above the Sea of Fog": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Caspar_David_Friedrich_-_Wanderer_above_the_Sea_of_Fog.jpg/500px-Caspar_David_Friedrich_-_Wanderer_above_the_Sea_of_Fog.jpg",
+  "Saturn Eating His Son":         "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Saturn_Devouring_His_Son.jpg/500px-Saturn_Devouring_His_Son.jpg",
+  "Ophelia":                       "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/John_Everett_Millais_-_Ophelia_-_Google_Art_Project.jpg/800px-John_Everett_Millais_-_Ophelia_-_Google_Art_Project.jpg",
+  "The Swing":                     "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Fragonard_-_The_Swing.jpg/500px-Fragonard_-_The_Swing.jpg",
+  "The Death of Marat":            "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Jacques-Louis_David%2C_The_Death_of_Marat.jpg/600px-Jacques-Louis_David%2C_The_Death_of_Marat.jpg",
+  "Narcissus":                     "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Caravaggio_-_Narcissus_-_Google_Art_Project.jpg/600px-Caravaggio_-_Narcissus_-_Google_Art_Project.jpg",
+  "The Entombment of Christ":      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/The_Entombment_of_Christ-Caravaggio.jpg/700px-The_Entombment_of_Christ-Caravaggio.jpg",
+  "Oath of the Horatii":           "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Oath_of_the_Horatii.jpg/800px-Oath_of_the_Horatii.jpg",
+  "The Anatomy Lesson of Dr. Nicolaes Tulp": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg/800px-The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg",
+  "A Sunday on La Grande Jatte":   "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Georges_Seurat_1884-86_A_Sunday_on_La_Grande_Jatte.jpg/800px-Georges_Seurat_1884-86_A_Sunday_on_La_Grande_Jatte.jpg",
+  "The Raft of the Medusa":        "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/The_Raft_of_the_Medusa.jpg/800px-The_Raft_of_the_Medusa.jpg",
+  "Spoliarium":                    "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Spoliarium.jpg/800px-Spoliarium.jpg",
+  "The Dream":                     "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Henri_Rousseau_-_The_Dream.jpg/800px-Henri_Rousseau_-_The_Dream.jpg",
+  "The Awakening Conscience":      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Awakening_Conscience.jpg/600px-The_Awakening_Conscience.jpg",
+  "The Desperate Man":             "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Gustave_Courbet_-_Le_D%C3%A9sesp%C3%A9r%C3%A9.jpg/600px-Gustave_Courbet_-_Le_D%C3%A9sesp%C3%A9r%C3%A9.jpg",
+  "The Origin of the World":       "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Gustave_Courbet_-_L%27Origine_du_monde.jpg/500px-Gustave_Courbet_-_L%27Origine_du_monde.jpg",
+  "Venus of Urbino":               "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Titian_-_Venus_of_Urbino.jpg/800px-Titian_-_Venus_of_Urbino.jpg",
+  "Portrait of a Young Woman":     "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Portrait_of_a_Young_Woman_Sandro_Botticelli.jpg/500px-Portrait_of_a_Young_Woman_Sandro_Botticelli.jpg",
+  "The Joy of Life":               "https://upload.wikimedia.org/wikipedia/en/thumb/3/3b/Le_Bonheur_de_Vivre.jpg/800px-Le_Bonheur_de_Vivre.jpg",
+  "Anatomical Pieces":             "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Anatomical_studies_Leonardo_da_Vinci.jpg/600px-Anatomical_studies_Leonardo_da_Vinci.jpg",
+  "Christ in the House of His Parents": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Christ_in_the_House_of_His_Parents.jpg/800px-Christ_in_the_House_of_His_Parents.jpg",
+  "Yakan Seputangan":              "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Yakan_textile.jpg/600px-Yakan_textile.jpg",
+  "Lovers with Cat":               "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Marc_Chagall_Lovers_with_Cat.jpg/500px-Marc_Chagall_Lovers_with_Cat.jpg",
+  "Miners' Wives":                "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Miners_wives_artwork.jpg/600px-Miners_wives_artwork.jpg",
+  "Three Graces":                  "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Lucas_Cranach_d.%C3%84._-_Die_Drei_Grazien_-_GG_892_-_Kunsthistorisches_Museum.jpg/400px-Lucas_Cranach_d.%C3%84._-_Die_Drei_Grazien_-_GG_892_-_Kunsthistorisches_Museum.jpg",
+};
+
+let artworks = []; // will be populated after API fetch
+let questions = [];
+let currentQ = 0;
+let score = 0;
+let answered = false;
+let loaded = 0;
+
+// Fetch image URL from Wikimedia Commons API for a given filename
+async function fetchCommonsImageUrl(filename) {
+  try {
+    const decodedFile = decodeURIComponent(filename);
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(decodedFile)}&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json&origin=*`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const pages = data.query.pages;
+    const page = Object.values(pages)[0];
+    if (page.imageinfo && page.imageinfo[0]) {
+      return page.imageinfo[0].thumburl || page.imageinfo[0].url;
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function preloadAllImages() {
+  const total = ARTWORKS_DEF.length;
+  document.getElementById('totalVal').textContent = total;
+
+  const results = await Promise.all(ARTWORKS_DEF.map(async (def) => {
+    let imgUrl = await fetchCommonsImageUrl(def.file);
+    
+    // If API failed, try fallback URL
+    if (!imgUrl) {
+      imgUrl = FALLBACKS[def.title] || null;
+    }
+
+    loaded++;
+    document.getElementById('loadProgress').textContent = `${loaded} / ${total} loaded`;
+
+    return { title: def.title, url: imgUrl };
+  }));
+
+  // Only keep artworks where we got an image
+  artworks = results.filter(a => a.url);
+  
+  if (artworks.length < 4) {
+    document.getElementById('loadingScreen').innerHTML = `
+      <div style="color:var(--parchment);padding:40px;text-align:center">
+        <p style="font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--gold);margin-bottom:12px">Unable to Load Images</p>
+        <p style="color:var(--muted);font-size:.9rem">Could not connect to the image archive. Please check your internet connection and refresh.</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('loadingScreen').style.display = 'none';
+  startGame();
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function buildQuestions() {
+  return shuffle(artworks).map(correct => {
+    const distractors = shuffle(artworks.filter(a => a.title !== correct.title)).slice(0,3);
+    return { correct, choices: shuffle([correct, ...distractors]) };
+  });
+}
+
+function startGame() {
+  questions = buildQuestions();
+  currentQ = 0; score = 0;
+  document.getElementById('scoreVal').textContent = 0;
+  document.getElementById('totalVal').textContent = questions.length;
+  document.getElementById('gameCard').style.display = 'block';
+  document.getElementById('finalScreen').style.display = 'none';
+  renderQuestion();
+}
+
+function showImage(src) {
+  const img = document.getElementById('artworkImg');
+  const loading = document.getElementById('imgLoading');
+  const errDiv = document.getElementById('imgError');
+  img.style.display = 'none';
+  errDiv.style.display = 'none';
+  loading.style.display = 'flex';
+
+  const fresh = new Image();
+  fresh.onload = () => { img.src = src; img.style.display = 'block'; loading.style.display = 'none'; };
+  fresh.onerror = () => { loading.style.display = 'none'; errDiv.style.display = 'flex'; };
+  fresh.src = src;
+}
+
+function renderQuestion() {
+  answered = false;
+  const total = questions.length;
+  const q = questions[currentQ];
+  showImage(q.correct.url);
+  document.getElementById('artworkNum').textContent = `${currentQ+1} / ${total}`;
+  document.getElementById('questionVal').textContent = currentQ+1;
+  document.getElementById('progressBar').style.width = `${(currentQ/total)*100}%`;
+  document.getElementById('feedback').style.display = 'none';
+  document.getElementById('nextBtn').style.display = 'none';
+  const grid = document.getElementById('choicesGrid');
+  grid.innerHTML = '';
+  q.choices.forEach(choice => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = choice.title;
+    btn.onclick = () => handleAnswer(choice.title, q.correct.title, btn);
+    grid.appendChild(btn);
+  });
+  const card = document.getElementById('gameCard');
+  card.style.animation = 'none'; void card.offsetWidth; card.style.animation = 'cardIn .5s ease forwards';
+}
+
+function handleAnswer(chosen, correct, clickedBtn) {
+  if (answered) return;
+  answered = true;
+  document.querySelectorAll('.choice-btn').forEach(btn => {
+    btn.disabled = true;
+    if (btn.textContent === correct && btn !== clickedBtn) btn.classList.add('reveal');
+  });
+  const fb = document.getElementById('feedback');
+  fb.style.display = 'flex';
+  if (chosen === correct) {
+    score++;
+    document.getElementById('scoreVal').textContent = score;
+    clickedBtn.classList.add('correct');
+    document.getElementById('feedbackIcon').textContent = '✦';
+    document.getElementById('feedbackTitle').textContent = 'Correct!';
+    document.getElementById('feedbackTitle').className = 'feedback-title correct';
+    document.getElementById('feedbackDetail').textContent = `"${correct}" — well identified.`;
+  } else {
+    clickedBtn.classList.add('wrong');
+    document.getElementById('feedbackIcon').textContent = '✗';
+    document.getElementById('feedbackTitle').textContent = 'Incorrect';
+    document.getElementById('feedbackTitle').className = 'feedback-title wrong';
+    document.getElementById('feedbackDetail').textContent = `The correct answer was "${correct}".`;
+  }
+  document.getElementById('nextBtn').style.display = 'block';
+}
+
+function nextQuestion() {
+  currentQ++;
+  if (currentQ >= questions.length) showFinal();
+  else renderQuestion();
+}
+
+function showFinal() {
+  document.getElementById('gameCard').style.display = 'none';
+  document.getElementById('progressBar').style.width = '100%';
+  const total = questions.length;
+  const pct = score / total;
+  let medal, grade, subtitle;
+  if (pct === 1)       { medal='🏆'; grade='Grand Master Connoisseur'; subtitle='A perfect score — the galleries bow before you.'; }
+  else if (pct >= 0.8) { medal='🥇'; grade='Distinguished Scholar';   subtitle='An impressive command of the canon.'; }
+  else if (pct >= 0.6) { medal='🥈'; grade='Aspiring Curator';        subtitle='A promising eye for the masterworks.'; }
+  else if (pct >= 0.4) { medal='🎨'; grade='Casual Visitor';          subtitle='The gallery awaits your return.'; }
+  else                 { medal='🖼️'; grade='First-Time Guest';         subtitle='Every great connoisseur begins somewhere.'; }
+  document.getElementById('finalMedal').textContent = medal;
+  document.getElementById('finalScore').textContent = `${score}/${total}`;
+  document.getElementById('gradeBadge').textContent = grade;
+  document.getElementById('finalSubtitle').textContent = subtitle;
+  const fs = document.getElementById('finalScreen');
+  fs.style.display = 'block'; fs.style.animation = 'none'; void fs.offsetWidth; fs.style.animation = 'cardIn .6s ease forwards';
+}
+
+function restartGame() { startGame(); }
+
+// Kick off image loading on page load
+preloadAllImages();
+</script>
+</body>
+</html>
